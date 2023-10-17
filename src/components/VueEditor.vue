@@ -78,11 +78,21 @@ export default {
     this.registerCustomModules(Quill);
     this.registerPrototypes();
     this.initializeEditor();
+
+    // 如果使用自定义图片处理器，添加粘贴事件监听器
+    if (this.useCustomImageHandler) {
+      this.$refs.quillContainer.addEventListener("paste", this.handlePaste);
+    }
   },
 
   beforeDestroy() {
     this.quill = null;
     delete this.quill;
+
+    // 清除粘贴事件监听器
+    if (this.useCustomImageHandler) {
+      this.$refs.quillContainer.removeEventListener("paste", this.handlePaste);
+    }
   },
 
   methods: {
@@ -211,6 +221,45 @@ export default {
       const range = Editor.getSelection();
       const cursorLocation = range.index;
       this.$emit("image-added", file, Editor, cursorLocation, resetUploader);
+    },
+
+    handlePaste(event) {
+      // 如果剪贴板中有文件
+      if (event.clipboardData && event.clipboardData.items) {
+        const items = event.clipboardData.items;
+        Array.from(items).forEach(item => {
+          // 如果是图片文件
+          if (item.type.indexOf("image") !== -1) {
+            // 阻止默认粘贴行为
+            event.preventDefault();
+            // 读取图片文件
+            const blob = item.getAsFile();
+            const reader = new FileReader();
+            const timeStamp = new Date().getTime();
+            reader.onload = () => {
+              const file = new File([blob], `paste-image-${timeStamp}.png`, {
+                type: blob.type
+              });
+              const Editor = this.quill;
+              const range = Editor.getSelection();
+              const cursorLocation = range.index;
+              const resetUploader = function() {
+                var uploader = document.getElementById("file-upload");
+                uploader.value = "";
+              };
+              // 触发 image-added 事件
+              this.$emit(
+                "image-added",
+                file,
+                Editor,
+                cursorLocation,
+                resetUploader
+              );
+            };
+            reader.readAsDataURL(blob);
+          }
+        });
+      }
     }
   }
 };
